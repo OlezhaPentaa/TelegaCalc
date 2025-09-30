@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>TG-Calc</title>
+    <style>
+        /* --- Глобальные переменные и стили --- */
+        :root {
+            --bg-color: #1c1c1c;
+            --display-bg: #2b2b2b;
+            --btn-num-bg: #3d3d3d;
+            --btn-op-bg: #ff9500;
+            --btn-func-bg: #a6a6a6;
+            --text-light: #ffffff;
+            --text-dark: #000000;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-light);
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            height: 100vh;
+            -webkit-tap-highlight-color: transparent; /* Убирает подсветку при тапе на мобильных */
+        }
+
+        /* --- Контейнер калькулятора --- */
+        .calculator {
+            width: 100%;
+            max-width: 420px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-color);
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        /* --- Дисплей --- */
+        .display {
+            background-color: var(--display-bg);
+            color: var(--text-light);
+            font-size: 3.5rem;
+            text-align: right;
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            flex-grow: 1;
+            display: flex;
+            align-items: flex-end;
+            justify-content: flex-end;
+            word-break: break-all;
+            min-height: 80px; /* Минимальная высота, чтобы не схлопывался */
+        }
+        
+        #output {
+            transition: font-size 0.2s ease-in-out;
+        }
+
+        /* --- Сетка кнопок --- */
+        .keys {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .btn {
+            background-color: var(--btn-num-bg);
+            color: var(--text-light);
+            border: none;
+            border-radius: 50%; /* Идеальный круг */
+            font-size: 2rem;
+            cursor: pointer;
+            aspect-ratio: 1 / 1; /* Поддерживает круглую форму */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: filter 0.2s;
+            user-select: none; /* Запрещает выделение текста на кнопке */
+        }
+
+        .btn:active {
+            filter: brightness(0.7);
+        }
+        
+        /* --- Стили для разных типов кнопок --- */
+        .btn.operator {
+            background-color: var(--btn-op-bg);
+        }
+
+        .btn.function {
+            background-color: var(--btn-func-bg);
+            color: var(--text-dark);
+        }
+
+        .btn.zero {
+            grid-column: span 2;
+            border-radius: 40px; /* Овальная форма */
+            justify-content: flex-start;
+            padding-left: 30px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="calculator">
+        <div class="display">
+            <div id="output">0</div>
+        </div>
+        <div class="keys">
+            <!-- Ряд 1 -->
+            <button class="btn function" data-key="clear">AC</button>
+            <button class="btn function" data-key="sign">±</button>
+            <button class="btn function" data-key="%">%</button>
+            <button class="btn operator" data-key="/">÷</button>
+            <!-- Ряд 2 -->
+            <button class="btn" data-key="7">7</button>
+            <button class="btn" data-key="8">8</button>
+            <button class="btn" data-key="9">9</button>
+            <button class="btn operator" data-key="*">×</button>
+            <!-- Ряд 3 -->
+            <button class="btn" data-key="4">4</button>
+            <button class="btn" data-key="5">5</button>
+            <button class="btn" data-key="6">6</button>
+            <button class="btn operator" data-key="-">−</button>
+            <!-- Ряд 4 -->
+            <button class="btn" data-key="1">1</button>
+            <button class="btn" data-key="2">2</button>
+            <button class="btn" data-key="3">3</button>
+            <button class="btn operator" data-key="+">+</button>
+            <!-- Ряд 5 -->
+            <button class="btn zero" data-key="0">0</button>
+            <button class="btn" data-key=".">.</button>
+            <button class="btn operator" data-key="=">=</button>
+        </div>
+    </div>
+
+    <!-- Скрипт Telegram -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <script>
+        const display = document.getElementById('output');
+        const keys = document.querySelector('.keys');
+        const clearButton = document.querySelector('[data-key="clear"]');
+        let currentInput = '0';
+        let operator = null;
+        let previousInput = null;
+        let shouldResetDisplay = false;
+
+        // Инициализация Telegram Mini App
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand(); // Разворачиваем приложение на весь экран
+
+        // Обработка нажатий
+        keys.addEventListener('click', (event) => {
+            if (!event.target.matches('.btn')) return;
+            
+            // Виброотклик для лучшего UX
+            tg.HapticFeedback.impactOccurred('light');
+
+            const key = event.target;
+            const keyValue = key.dataset.key;
+            
+            updateDisplay(keyValue);
+        });
+
+        function updateDisplay(key) {
+            if (/\d/.test(key)) { // Если нажата цифра
+                if (shouldResetDisplay || currentInput === '0') {
+                    currentInput = key;
+                    shouldResetDisplay = false;
+                } else {
+                    currentInput += key;
+                }
+                clearButton.textContent = 'C';
+            }
+
+            if (key === '.') { // Если нажата точка
+                if (shouldResetDisplay) {
+                    currentInput = '0.';
+                    shouldResetDisplay = false;
+                } else if (!currentInput.includes('.')) {
+                    currentInput += '.';
+                }
+            }
+
+            if (['+', '-', '*', '/'].includes(key)) { // Если нажат оператор
+                if (operator && !shouldResetDisplay) {
+                    calculate();
+                }
+                previousInput = currentInput;
+                operator = key;
+                shouldResetDisplay = true;
+            }
+
+            if (key === '=') { // Если нажато равно
+                if (operator && previousInput !== null) {
+                    calculate();
+                    operator = null;
+                    shouldResetDisplay = true;
+                }
+            }
+            
+            if (key === '%') {
+                currentInput = String(parseFloat(currentInput) / 100);
+            }
+            
+            if (key === 'sign') {
+                currentInput = String(parseFloat(currentInput) * -1);
+            }
+
+            if (key === 'clear') { // Если нажата очистка
+                currentInput = '0';
+                operator = null;
+                previousInput = null;
+                shouldResetDisplay = false;
+                clearButton.textContent = 'AC';
+            }
+            
+            render();
+        }
+        
+        function calculate() {
+            const prev = parseFloat(previousInput);
+            const current = parseFloat(currentInput);
+            if (isNaN(prev) || isNaN(current)) return;
+            
+            let result;
+            switch (operator) {
+                case '+': result = prev + current; break;
+                case '-': result = prev - current; break;
+                case '*': result = prev * current; break;
+                case '/': result = prev / current; break;
+                default: return;
+            }
+            currentInput = String(result);
+        }
+        
+        function render() {
+            // Адаптивный размер шрифта
+            if (currentInput.length > 9) {
+                display.style.fontSize = '2rem';
+            } else if (currentInput.length > 6) {
+                display.style.fontSize = '2.5rem';
+            } else {
+                display.style.fontSize = '3.5rem';
+            }
+            
+            // Форматирование вывода
+            let [integerPart, decimalPart] = currentInput.split('.');
+            let formattedInteger = parseFloat(integerPart).toLocaleString('ru-RU');
+            display.textContent = decimalPart !== undefined ? `${formattedInteger},${decimalPart}` : formattedInteger;
+        }
+        
+        render(); // Первоначальный рендер
+    </script>
+
+</body>
+</html>
